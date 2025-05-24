@@ -66,7 +66,7 @@ intents = [
     {
         "tag": "your boss",
         "patterns": ["who is your boss", "who created you", "what is your boss name"],
-        "responses": ["Akilan, he created me"],
+        "responses": ["Vaishnavi, She created me"],
     },
     {
         "tag": "cough",
