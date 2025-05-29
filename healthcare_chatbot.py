@@ -564,7 +564,7 @@ def main():
     user_input = st.text_input("You:")
     if user_input:
         response = chatbot(user_input)
-        st.text_area("Chatbot:", value=response, height=300, max_chars=None)
+        st.text_area("Chatbot:", value=response, height=200, max_chars=None)
 
 if __name__ == "__main__":
     main()
