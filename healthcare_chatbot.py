@@ -5,7 +5,7 @@ import requests
 import streamlit as st
 import random
 import re
-
+import nltk
 
 # --- Session State Initialization ---
 if 'conversation' not in st.session_state:
