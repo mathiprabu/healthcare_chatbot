@@ -4,8 +4,56 @@ import ssl
 import requests
 import streamlit as st
 import random
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
+import re
+
+
+# --- Session State Initialization ---
+if 'conversation' not in st.session_state:
+    st.session_state.conversation = []
+    
+if 'topics' not in st.session_state:
+    st.session_state.topics = {
+        "Health Issues:": ["Bleeding", "Cancer","Choking","Cold","Corona","Cough","Eye injury","Fever","Headache","Leg pain","Skin problem","Snake bite","Stomach pain","Teeth Issue","Wound"],
+        "Test Level Tags:": ["BMI check","Cholesterol","Bp level","Hemoglobin","Ptinr level","Salt level","Sugar level"]
+    }
+
+if 'show_topics' not in st.session_state:
+    st.session_state.show_topics = False
+
+# --- Buttons ---
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("📋 Show Topics"):
+        st.session_state.show_topics = not st.session_state.show_topics
+
+with col2:
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.conversation = []
+        st.rerun()  # Refresh the app
+
+# --- Show Categories and Topics only when the button is clicked ---
+if st.session_state.show_topics:
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### Health Issues:")
+        for topic in st.session_state.topics.get("Health Issues:", []):
+            st.markdown(f"- {topic}")
+
+    with col2:
+        st.markdown("### Test Level Tags:")
+        for topic in st.session_state.topics.get("Test Level Tags:", []):
+            st.markdown(f"- {topic}")
+
+# --- Display Conversation in Chat-Like Format ---
+for chat in st.session_state.conversation:
+    with st.chat_message("user"):
+        st.markdown(chat["user"])
+    with st.chat_message("assistant"):
+        st.markdown(chat["ai"])
+
+
 
 try:
     nltk.data.find("tokenizers/punkt")
@@ -56,6 +104,7 @@ intents = [
     {
         "tag": "your name",
         "patterns": [
+        "name",
             "what is your name",
             "how can i call you",
             "Tell me, what should I call you",
@@ -65,12 +114,13 @@ intents = [
     },
     {
         "tag": "your boss",
-        "patterns": ["who is your boss", "who created you", "what is your boss name"],
-        "responses": ["Vaishnavi, She created me"],
+        "patterns": ["boss","who is your boss", "who created you", "what is your boss name"],
+        "responses": ["Vashnavi R, She created me"],
     },
     {
         "tag": "cough",
         "patterns": [
+        "cough",
             "How to cure cough?",
             "How do you treat cough?",
             "what to do if i get a cough?",
@@ -91,6 +141,7 @@ intents = [
     {
         "tag": "skin problem",
         "patterns": [
+        "skin",
             "How do you treat Skin problems?",
             "what to do if i get a skin allergy?",
             "Which medicine to take if I get a skin allergy?",
@@ -118,6 +169,7 @@ intents = [
     {
         "tag": "choking",
         "patterns": [
+        "choking",
             "How do you treat Choking?",
             "what to do if i get a Choke?",
             "Which medicine to take if I get Choked?",
@@ -133,6 +185,7 @@ intents = [
     {
         "tag": "wound",
         "patterns": [
+        "wound",
             "How do you treat a wound?",
             "what to do if i get a Wound?",
             "Which medicine to take if I get wounded?",
@@ -149,6 +202,7 @@ intents = [
     {
         "tag": "bleeding",
         "patterns": [
+        "bleeding",
             "How do you treat bleeding?",
             "what to do if i get a Bleeding?",
             "Which medicine to take if I get bleeding?",
@@ -164,6 +218,9 @@ intents = [
     {
         "tag": "eye injury",
         "patterns": [
+        "eye",
+        "eye injury",
+        
             "How do you treat an eye Injury?",
             "what to do if i get a eye Injury?",
             "Which medicine to take if I injured my eye?",
@@ -179,6 +236,7 @@ intents = [
     {  
         "tag": "teeth",
         "patterns": [
+        "teeth","teeth issue",
             "How do you treat broken Teeth?",
             "what to do if my Teeth got broken?",
             "Which medicine to take if I get broken teeth?",
@@ -195,6 +253,7 @@ intents = [
     {
         "tag": "headache",
         "patterns": [
+        "headache",
             "How do you treat a mild Headache?",
             "what to do if i get a mild Headache?",
             "Which medicine to take if I have a mild headache?",
@@ -210,6 +269,7 @@ intents = [
     {
         "tag": "cold",
         "patterns": [
+        "cold",
             "How do you treat a Cold?",
             "what to do if i get a mild Cold?",
             "Which medicine to take if I have a Cold?",
@@ -224,9 +284,26 @@ intents = [
             "3) When it comes to combating a cold, Vitamin D is essential in helping to regulate immune response.",
         ],
     },
+      {
+        "tag": "corona",
+        "patterns": [
+        "corona",
+            "covid 19",
+            "covid"
+            "how to cure corona",
+        ],
+        "responses": [
+            "Remdesivir injection is also used to treat coronavirus disease 2019 (COVID-19 infection) "
+            "caused by the SARS-CoV-2 virus in non-hospitalized adults and children 28 days and older "
+            "who weigh at least 6.6 pounds (3 kg) who are at high risk of progression to severe COVID-19.",
+
+        ],
+    },
     {
         "tag": "snake bite",
         "patterns": [
+        "snake bite",
+        "snake",
             "How do you treat a snake bite?",
             "what to do if i get a snake bite?",
             "Which medicine to take if I get a snake bite?",
@@ -242,21 +319,11 @@ intents = [
             "6) Remove shoes if the leg or foot was bitten.",
         ],
     },
-    {
-        "tag": "corona",
-        "patterns": [
-            "covid 19",
-            "how to cure corona",
-        ],
-        "responses": [
-            "Remdesivir injection is also used to treat coronavirus disease 2019 (COVID-19 infection) "
-            "caused by the SARS-CoV-2 virus in non-hospitalized adults and children 28 days and older "
-            "who weigh at least 6.6 pounds (3 kg) who are at high risk of progression to severe COVID-19.",
-        ],
-    },
+   
     {
         "tag": "leg pain",
         "patterns": [
+        "pain",
             "leg pain",
             "knee pain",
             "neck pain",
@@ -298,7 +365,7 @@ intents = [
         ],
     },
     { 
-        "tag": "disease",
+        "tag": "mosquito-borne diseases(malaria,dengue,chikungunya,yellow fever",
         "patterns": [
             "malaria",
             "dengue",
@@ -312,41 +379,192 @@ intents = [
             "It acts against the Plasmodium falciparum parasite.",
         ],
     },
+{
+    "tag": "BMI Check",
+    "patterns": [
+    "bmi",
+        "bmi check",
+        "calculate bmi",
+        "find my bmi",
+        "bmi calculation",
+    ],
+    "responses": [
+        "Sure! To calculate BMI, type your weight (kg) and height (cm) like this: bmi 70 170.",
+    ],
+},
+
+{
+    "tag": "sugar level",
+    "patterns": [
+    "sugar",
+        "sugar level",
+        "blood sugar",
+        "glucose level",
+        "what is normal sugar level",
+        "high sugar",
+        "low sugar",
+    ],
+    "responses": [
+        "Normal fasting blood sugar: 70-99 mg/dL.\n"
+        "Post-meal (2 hours) blood sugar: less than 140 mg/dL.\n"
+        "Prediabetes: 100-125 mg/dL (fasting).\n"
+        "Diabetes: 126 mg/dL or higher (fasting).",
+    ],
+},
+
+{
+    "tag": "bp level",
+    "patterns": [
+    "BP",
+        "bp level",
+        "blood pressure",
+        "normal blood pressure",
+        "high blood pressure",
+        "low blood pressure",
+    ],
+    "responses": [
+        "Normal BP: 120/80 mmHg.\n"
+        "Elevated: 120-129/<80 mmHg.\n"
+        "Hypertension stage 1: 130-139/80-89 mmHg.\n"
+        "Hypertension stage 2: ≥140/90 mmHg.\n"
+        "Low BP: less than 90/60 mmHg.",
+    ],
+},
+{
+    "tag": "ptinr level",
+    "patterns": [
+    "ptinr level",
+        "ptinr",
+        "pt inr",
+        "prothrombin time",
+        "normal ptinr level",
+        "blood clotting",
+    ],
+    "responses": [
+        "Normal PT-INR: 0.8 to 1.1.\n"
+        "For patients on warfarin (blood thinner), a typical target INR is 2.0 to 3.0.\n"
+        "Higher INR means blood clots slower; lower INR means it clots faster.",
+    ],
+},
+{
+    "tag": "salt level",
+    "patterns": [
+    "salt",
+        "salt level",
+        "sodium level",
+        "normal sodium level",
+        "hyponatremia",
+        "hypernatremia",
+    ],
+    "responses": [
+        "Normal sodium (salt) level: 135 to 145 mEq/L.\n"
+        "Hyponatremia (low sodium): less than 135 mEq/L.\n"
+        "Hypernatremia (high sodium): greater than 145 mEq/L.",
+    ],
+},
+
+{
+        "tag": "cholesterol",
+        "patterns": [
+        "cholesterol","cholesterol level",
+            "What is normal cholesterol level?",
+            "Cholesterol levels",
+            "HDL, LDL, Total cholesterol levels",
+            "cholesterol",
+        ],
+        "responses": [
+            "Normal cholesterol levels:\n"
+            "Total cholesterol: less than 200 mg/dL\n"
+            "LDL (bad cholesterol): less than 100 mg/dL\n"
+            "HDL (good cholesterol): 40 mg/dL or higher (men), 50 mg/dL or higher (women)\n"
+            "Triglycerides: less than 150 mg/dL",
+        ],
+    },
+    {
+        "tag": "hemoglobin",
+        "patterns": [
+        "hemoglobin",
+        "hemoglobin level",
+            "What is normal hemoglobin level?",
+            "Hemoglobin levels",
+            "Hb level",
+            "hemoglobin",
+        ],
+        "responses": [
+            "Normal hemoglobin (Hb) levels:\n"
+            "Men: 13.8 to 17.2 g/dL\n"
+            "Women: 12.1 to 15.1 g/dL\n"
+            "Children: 11 to 16 g/dL",
+        ],
+    },
+    {
+        "tag": "vitamin",
+        "patterns": [
+            "What is normal vitamin levels?",
+            "Vitamin D and B12 levels",
+            "vitamin D",
+            "vitamin B12",
+            "vitamin",
+            "vitamin level",
+        ],
+        "responses": [
+            "Normal vitamin levels:\n"
+            "Vitamin D: 30 to 100 ng/mL (optimal range)\n"
+            "Vitamin B12: 190 to 950 pg/mL",
+        ],
+    },
+
 ]
 
-# Create the vectorizer and classifier
-vectorizer = TfidfVectorizer()
-clf = LogisticRegression(random_state=0, max_iter=10000)
 
-# Preprocess the data
-tags = []
-patterns = []
-for intent in intents:
-    for pattern in intent["patterns"]:
-        tags.append(intent["tag"])
-        patterns.append(pattern)
-
-# Training the model
-x = vectorizer.fit_transform(patterns)
-y = tags
-print(x.shape)
-clf.fit(x, y)
-
-def chatbot(input_text):
-    input_text = vectorizer.transform([input_text])
-    tag = clf.predict(input_text)[0]
+def chatbot(user_input):
+    user_input = user_input.lower()
+    
+    # Greeting detection
+    greetings = ["hi", "hello", "hey", "how are you", "what's up"]
+    if any(greet in user_input for greet in greetings):
+        # Get all unique tags except small talk intents
+        exclude_tags = ["greeting", "thanks", "goodbye", "your name", "your boss", "help"]
+        disease_tags = [intent["tag"].capitalize() for intent in intents if intent["tag"] not in exclude_tags]
+        return "Hi there! Please click the Show Topics button to view the topics we support.\n\nWhat would you like to know about?"
+        
+    # BMI calculation logic
+    if user_input.startswith("bmi"):
+        try:
+            parts = user_input.split()
+            weight = float(parts[1])
+            height_cm = float(parts[2])
+            height_m = height_cm / 100
+            bmi = weight / (height_m ** 2)
+            category = ""
+            if bmi < 18.5:
+                category = "Underweight"
+            elif 18.5 <= bmi < 24.9:
+                category = "Normal weight"
+            elif 25 <= bmi < 29.9:
+                category = "Overweight"
+            else:
+                category = "Obesity"
+            return f"Your BMI is {bmi:.2f} ({category})."
+        except:
+            return "Please provide your weight (kg) and height (cm) in this format: bmi 70 170"
+    
+    # Pattern matching for intents
     for intent in intents:
-        if intent["tag"] == tag:
-            response = random.choice(intent["responses"])
-            return response
+        for pattern in intent["patterns"]:
+           if re.search(rf'\b{re.escape(pattern.lower())}\b', user_input.lower()):
+                return random.choice(intent["responses"])
+    
+    # Default response
+    return "I'm sorry, I don't understand. Can you please rephrase?"
 
 def main():
-    st.title("HEALTHCARE CHATBOT")
+    st.title("💬 HEALTHCARE CHATBOT 💬")
     st.write("Welcome to the chatbot. Please type a message and press Enter to start the conversation.")
     user_input = st.text_input("You:")
     if user_input:
         response = chatbot(user_input)
-        st.text_area("Chatbot:", value=response, height=100, max_chars=None)
+        st.text_area("Chatbot:", value=response, height=300, max_chars=None)
 
 if __name__ == "__main__":
     main()
